@@ -1,0 +1,267 @@
+# FleetMesa
+
+Automation and configuration-management sources are maintained in this code mirror.
+
+## Maintenance
+
+### 📝 Complete TODO List
+
+- [ ] **salt/auth/pam.py:205** - # TODO: This is not an authentication error, something
+- [ ] **salt/beacons/inotify.py:304** - # TODO: make the config handle more options
+- [ ] **salt/beacons/log_beacon.py:64** - # TODO: match values should be returned in the event
+- [ ] **salt/cache/mysql_cache.py:254** - # TODO: handle SSL connection parameters
+- [ ] **salt/channel/client.py:426** - # TODO: The zeromq transport does not use connect_callback and
+- [ ] **salt/channel/client.py:431** - # TODO: better exception handling...
+- [ ] **salt/channel/client.py:436** - # TODO: Basing re-try logic off exception messages is brittle and
+- [ ] **salt/channel/client.py:441** - # TODO: better error message
+- [ ] **salt/channel/server.py:308** - # TODO helper functions to normalize payload?
+- [ ] **salt/channel/server.py:366** - # TODO: test
+- [ ] **salt/cli/daemons.py:190** - # TODO: AIO core is separate from transport
+- [ ] **salt/cli/daemons.py:509** - # TODO: AIO core is separate from transport
+- [ ] **salt/client/__init__.py:121** - # TODO: AIO core is separate from transport
+- [ ] **salt/client/__init__.py:1090** - # TODO: tests!!
+- [ ] **salt/client/__init__.py:1309** - # TODO: move to a library??
+- [ ] **salt/client/__init__.py:1447** - # TODO: change this from ret to return... or the other way.
+- [ ] **salt/client/mixins.py:327** - # TODO: test that they exist
+- [ ] **salt/client/mixins.py:328** - # TODO: Other things to inject??
+- [ ] **salt/client/ssh/__init__.py:503** - # TODO: Support -L
+- [ ] **salt/client/ssh/__init__.py:1565** - # TODO: Auto expire the datap
+- [ ] **salt/client/ssh/__init__.py:1630** - # TODO: cache minion opts in datap in master.py
+- [ ] **salt/client/ssh/__init__.py:1660** - # above always evaluates to True. TODO: cleanup?
+- [ ] **salt/client/ssh/client.py:224** - # TODO Not implemented
+- [ ] **salt/client/ssh/shell.py:172** - # TODO ControlMaster does not work without ControlPath
+- [ ] **salt/client/ssh/shell.py:268** - # TODO: if tty, then our SSH_SHIM cannot be supplied from STDIN Will
+- [ ] **salt/client/ssh/wrapper/cp.py:1194** - # TODO replicate hash checks to avoid unnecessary transfers,
+- [ ] **salt/client/ssh/wrapper/publish.py:81** - # TODO: implement returners? Do they make sense for salt-ssh calls?
+- [ ] **salt/client/ssh/wrapper/saltcheck.py:118** - # TODO this could be better handled by a single state/connection due to ssh overhead
+- [ ] **salt/client/ssh/wrapper/ssh_pki.py:474** - # todo usually can be specified as the key itself
+- [ ] **salt/client/ssh/wrapper/ssh_pki.py:667** - # TODO: Subclass more specific errors to CommandExecutionError
+- [ ] **salt/client/ssh/wrapper/x509_v2.py:760** - # todo usually can be specified as the key itself
+- [ ] **salt/client/ssh/wrapper/x509_v2.py:765** - # todo usually can be specified as the csr itself
+- [ ] **salt/client/ssh/wrapper/x509_v2.py:988** - # TODO: Subclass more specific errors to CommandExecutionError
+- [ ] **salt/cloud/cli.py:260** - # TODO: check if provider is configured
+- [ ] **salt/config/__init__.py:111** - # TODO: Allow user configuration
+- [ ] **salt/config/__init__.py:113** - # TODO: Reserved for future use
+- [ ] **salt/config/__init__.py:516** - # TODO unknown option!
+- [ ] **salt/config/schemas/esxcluster.py:222** - # TODO Should be changed when anyOf is supported for schemas
+- [ ] **salt/config/schemas/esxdatacenter.py:28** - # TODO Should be changed when anyOf is supported for schemas
+- [ ] **salt/config/schemas/esxi.py:206** - # TODO Should be changed when anyOf is supported for schemas
+- [ ] **salt/crypt.py:957** - # TODO: if we already have creds for this key, lets just re-use
+- [ ] **salt/crypt.py:1701** - # TODO: remove, we should just return a sync wrapper of AsyncAuth
+- [ ] **salt/crypt.py:1770** - # TODO: remove unused var
+- [ ] **salt/daemons/masterapi.py:170** - # TODO: better way to not require creating the masterminion every time?
+- [ ] **salt/daemons/masterapi.py:230** - # TODO: Need a way to get all available users for systems not supported by pwd module.
+- [ ] **salt/grains/core.py:464** - # TODO: at least it needs to be tested for BSD other then FreeBSD
+- [ ] **salt/grains/core.py:3620** - # TODO: add grains using `bcdedit /enum {current}`
+- [ ] **salt/loader/__init__.py:41** - #  TODO:  remove the need for this cross-module code. Maybe use NotImplemented
+- [ ] **salt/loader/__init__.py:307** - # TODO Publish documentation for module whitelisting
+- [ ] **salt/loader/__init__.py:670** - # TODO: this name seems terrible... __salt__ should always be execution mods
+- [ ] **salt/loader/__init__.py:1139** - # if we have no grains, lets try loading from disk (TODO: move to decorator?)
+- [ ] **salt/loader/__init__.py:1312** - # TODO: get rid of? Does anyone use this? You should use raw() instead
+- [ ] **salt/loader/__init__.py:1354** - # TODO: change from __salt__ to something else, we overload __salt__ too much
+- [ ] **salt/loader/lazy.py:354** - # TODO: just remove them from file_mapping?
+- [ ] **salt/master.py:362** - # TODO DRY from CKMinions
+- [ ] **salt/master.py:966** - # TODO: remove, or at least push into the transport stuff (pre-fork probably makes sense there)
+- [ ] **salt/master.py:1690** - # TODO: rename? No longer tied to "AES", just "encrypted" or "private" requests
+- [ ] **salt/master.py:2399** - # TODO: return some error? Seems odd to return {}
+- [ ] **salt/metaproxy/deltaproxy.py:835** - # TODO: make a list? Seems odd to split it this late :/
+- [ ] **salt/metaproxy/proxy.py:610** - # TODO: make a list? Seems odd to split it this late :/
+- [ ] **salt/minion.py:477** - # TODO: remove
+- [ ] **salt/minion.py:1534** - # TODO: better name...
+- [ ] **salt/minion.py:2700** - # TODO: make this a configurable feature in the future
+- [ ] **salt/minion.py:2741** - # TODO: make a list? Seems odd to split it this late :/
+- [ ] **salt/minion.py:3292** - # TODO: only allow one future in flight at a time?
+- [ ] **salt/minion.py:3876** - # TODO: actually listen to the return and change period
+- [ ] **salt/minion.py:4313** - # TODO: even do this??
+- [ ] **salt/minion.py:4391** - # TODO: clean up docs
+- [ ] **salt/minion.py:4455** - # TODO: need a way of knowing if the syndic connection is busted
+- [ ] **salt/minion.py:4581** - # TODO: log?
+- [ ] **salt/minion.py:4603** - # TODO: debug?
+- [ ] **salt/minion.py:4750** - # TODO: cleanup: Move down into event class
+- [ ] **salt/minion.py:4812** - # TODO: config to forward these? If so we'll have to keep track of who
+- [ ] **salt/minion.py:4909** - # TODO: better name...
+- [ ] **salt/modules/apache.py:43** - # TODO: Add pillar support for the apachectl location
+- [ ] **salt/modules/aptpkg.py:2953** - # TODO: allow state=None to be set, and that *args will be set to that state
+- [ ] **salt/modules/aptpkg.py:2954** - # TODO: maybe use something similar to pkg_resources.pack_pkgs to allow a list
+- [ ] **salt/modules/aptpkg.py:2957** - # TODO: handle path to selection file from local fs as well as from salt file
+- [ ] **salt/modules/archive.py:41** - # TODO: Check that the passed arguments are correct
+- [ ] **salt/modules/at.py:26** - # TODO: Refactor some of this module to remove the checks for binaries
+- [ ] **salt/modules/at.py:155** - # TODO: Looks like there is a difference between salt and salt-call
+- [ ] **salt/modules/bcache.py:318** - # TODO: multiple devs == md jbod
+- [ ] **salt/modules/bcache.py:346** - # TODO: bucket from _sizes() makes no sense
+- [ ] **salt/modules/bcache.py:948** - # TODO: makes no sense
+- [ ] **salt/modules/bcache.py:1006** - # TODO: fix annoying bug failing blkdiscard by trying to discard 1 sector past blkdev
+- [ ] **salt/modules/cassandra_cql.py:295** - # TODO: Call cluster.shutdown() when the module is unloaded on
+- [ ] **salt/modules/cassandra_cql.py:407** - # TODO: Call cluster.shutdown() when the module is unloaded on shutdown.
+- [ ] **salt/modules/cryptdev.py:114** - # TODO: This command should be extended to collect more information, such as UUID.
+- [ ] **salt/modules/debian_ip.py:356** - # TODO: this is a bit loose when dtype is a class
+- [ ] **salt/modules/debian_ip.py:397** - # TODO: this limits bootp functionality
+- [ ] **salt/modules/debian_ip.py:405** - # TODO
+- [ ] **salt/modules/debian_ip.py:453** - # TODO
+- [ ] **salt/modules/debian_ip.py:454** - # TODO
+- [ ] **salt/modules/debian_ip.py:455** - # TODO
+- [ ] **salt/modules/debian_ip.py:494** - # TODO
+- [ ] **salt/modules/debian_ip.py:495** - # TODO
+- [ ] **salt/modules/debian_ip.py:496** - # TODO
+- [ ] **salt/modules/debian_ip.py:502** - # TODO
+- [ ] **salt/modules/debian_ip.py:503** - # TODO
+- [ ] **salt/modules/debian_ip.py:512** - # TODO
+- [ ] **salt/modules/disk.py:69** - # TODO: most of these cause the result parsing to fail
+- [ ] **salt/modules/event.py:52** - # TODO, no fallback
+- [ ] **salt/modules/extfs.py:296** - # TODO: comps[4:], which may look one one of the following:
+- [ ] **salt/modules/file.py:7** - # TODO: We should add the capability to do u+r type operations here
+- [ ] **salt/modules/file.py:2062** - # TODO: This should change, it doesn't match existing
+- [ ] **salt/modules/highstate_doc.py:458** - # TODO: __env__,
+- [ ] **salt/modules/highstate_doc.py:535** - # TODO: use salt defined STATE_REQUISITE_IN_KEYWORDS  STATE_RUNTIME_KEYWORDS  STATE_INTERNAL_KEYWORDS
+- [ ] **salt/modules/highstate_doc.py:581** - # TODO: this is linux only should find somthing portable
+- [ ] **salt/modules/highstate_doc.py:645** - # TODO: switch or ... ext call.
+- [ ] **salt/modules/highstate_doc.py:650** - # TODO: use salt defined STATE_REQUISITE_IN_KEYWORDS
+- [ ] **salt/modules/linux_sysctl.py:21** - # TODO: Add unpersist() to remove either a sysctl or sysctl/value combo from
+- [ ] **salt/modules/mysql.py:2383** - # TODO: Re-order the grant so it is according to the
+- [ ] **salt/modules/parted_partition.py:112** - # TODO: all the other inputs to the functions in this module are repetitively
+- [ ] **salt/modules/pip.py:1147** - # TODO make this check if writeable
+- [ ] **salt/modules/postgres.py:577** - # TODO properly implemented escaping
+- [ ] **salt/modules/postgres.py:674** - # Nothing todo?
+- [ ] **salt/modules/postgres.py:893** - # Nothing todo?
+- [ ] **salt/modules/saltutil.py:1683** - # TODO: move this into a channel function? Or auth?
+- [ ] **salt/modules/ssh.py:331** - # TODO: support parsing sshd_config for the key directory
+- [ ] **salt/modules/ssh.py:618** - # TODO: Should this function return a simple boolean?
+- [ ] **salt/modules/ssh.py:639** - # TODO: add support for pulling keys from other file sources as well
+- [ ] **salt/modules/state.py:2476** - # TODO - Add ability to download from salt master or other source
+- [ ] **salt/modules/supervisord.py:356** - # TODO: try to find a way to use the supervisor python module to read the
+- [ ] **salt/modules/vsphere.py:7557** - # TODO Support multiple host cache info objects (on multiple datastores)
+- [ ] **salt/modules/win_dacl.py:14** - # TODO: Figure out the exceptions that could be raised and properly catch
+- [ ] **salt/modules/win_event.py:176** - # TODO: upgrade windows token
+- [ ] **salt/modules/win_event.py:195** - # TODO: downgrade windows token
+- [ ] **salt/modules/win_lgpo.py:4811** - # TODO: This needs to be more specific
+- [ ] **salt/modules/win_lgpo.py:5938** - # TODO: This needs to be more specific
+- [ ] **salt/modules/win_lgpo.py:6954** - # TODO does this need to be modified based on the 'required' attribute?
+- [ ] **salt/modules/win_lgpo.py:8189** - # TODO: This needs to be more specific or removed
+- [ ] **salt/modules/win_lgpo.py:9084** - # TODO: Need to figure out how to get the lgpo.get function to use this code
+- [ ] **salt/modules/win_lgpo.py:9085** - # TODO: as it is very similar
+- [ ] **salt/modules/win_lgpo.py:9238** - # TODO does this need to be modified based on the 'required' attribute?
+- [ ] **salt/modules/win_lgpo.py:10557** - # TODO: This needs to be more specific
+- [ ] **salt/modules/win_pkg.py:454** - # TODO: Look at returning an error across all platforms with
+- [ ] **salt/modules/win_system.py:120** - # TODO: Create a mapping of runlevels to  # pylint: disable=fixme
+- [ ] **salt/modules/win_task.py:1079** - # TODO: Add more detailed return for items changed
+- [ ] **salt/modules/win_task.py:1226** - # TODO: Check triggers for end_boundary
+- [ ] **salt/modules/win_task.py:1907** - # TODO: The problem is, you have to have at least one action for the task to
+- [ ] **salt/modules/win_task.py:1908** - # TODO: be valid, so this will always fail with a 'Required element or
+- [ ] **salt/modules/win_task.py:1909** - # TODO: attribute missing' error.
+- [ ] **salt/modules/win_task.py:1910** - # TODO: Make this an internal function that clears the functions but doesn't
+- [ ] **salt/modules/win_task.py:1911** - # TODO: save it. Then you can add a new function. Maybe for editing an
+- [ ] **salt/modules/win_task.py:1912** - # TODO: action.
+- [ ] **salt/modules/x509.py:1468** - # TODO: Make timeout configurable in 3000
+- [ ] **salt/modules/yumpkg.py:1685** - # TODO: find a better way to determine if a
+- [ ] **salt/modules/zk_concurrency.py:26** - # TODO: use the kazoo one, waiting for pull req:
+- [ ] **salt/netapi/rest_tornado/saltnado.py:528** - # TODO: set a header or something??? so we know it was a timeout
+- [ ] **salt/netapi/rest_tornado/saltnado.py:689** - # TODO: make asynchronous? Underlying library isn't... and we ARE making disk calls :(
+- [ ] **salt/netapi/rest_tornado/saltnado.py:771** - # TODO: nicer error message
+- [ ] **salt/netapi/rest_tornado/saltnado.py:796** - # TODO better error -- 'Configuration for external_auth could not be read.'
+- [ ] **salt/netapi/rest_tornado/saltnado.py:1081** - # TODO: set header??
+- [ ] **salt/netapi/rest_tornado/saltnado.py:1787** - # TODO: consolidate??
+- [ ] **salt/output/progress.py:25** - # TODO: implement a way to get the proper target minions count and remove this workaround.
+- [ ] **salt/pillar/__init__.py:98** - # TODO: migrate everyone to this one!
+- [ ] **salt/pillar/__init__.py:1353** - # TODO: actually migrate from Pillar to AsyncPillar to allow for futures in
+- [ ] **salt/platform/win.py:1277** - # TODO: is `duplicate_token` the same?
+- [ ] **salt/proxy/deltaproxy.py:78** - # TODO call shutdown on all the sub-proxies?
+- [ ] **salt/renderers/pyobjects.py:317** - # TODO: Interface for working with reactor files
+- [ ] **salt/renderers/pyobjects.py:381** - # TODO: some way to lazily do this? This requires loading *all* state modules
+- [ ] **salt/renderers/stateconf.py:14** - # TODO:
+- [ ] **salt/returners/local_cache.py:83** - # TODO: add to returner docs-- this is a new one
+- [ ] **salt/returners/postgres_local_cache.py:173** - # TODO: Add Metadata support when it is merged from develop
+- [ ] **salt/returners/postgres_local_cache.py:305** - # TODO: Add Metadata support when it is merged from develop
+- [ ] **salt/returners/postgres_local_cache.py:329** - # TODO: Add Metadata support when it is merged from develop
+- [ ] **salt/runner.py:209** - # TODO: move to mixin whenever we want a salt-wheel cli
+- [ ] **salt/runners/manage.py:237** - # TODO: implement other states support for 0MQ
+- [ ] **salt/runners/manage.py:790** - # TODO: Need to make this gets the latest version from the new repo location
+- [ ] **salt/runners/manage.py:791** - # TODO: Similar to tests/support/win_installer.py
+- [ ] **salt/runners/manage.py:792** - # TODO: Maybe need to move that ^^^^ to a salt util
+- [ ] **salt/runners/survey.py:80** - # TODO: The salt execution module "cp.get_file_str file:///..." is a
+- [ ] **salt/runners/survey.py:136** - # TODO: the option "survey.sort=" would be preferred for namespace
+- [ ] **salt/state.py:1339** - # TODO: Add runners, proxy?
+- [ ] **salt/states/file.py:5202** - # TODO: Use directory(clean=True) instead
+- [ ] **salt/states/file.py:5339** - # TODO: move to an ordered dict model and reduce the number of sorts in the rest of the code?
+- [ ] **salt/states/file.py:5414** - # TODO: track and report how much space was / would be reclaimed
+- [ ] **salt/states/file.py:7810** - # TODO adding the not orig_test is just a patch
+- [ ] **salt/states/file.py:8231** - # TODO: Add the other win_* parameters to this function
+- [ ] **salt/states/firewalld.py:426** - # TODO: prune_services=False in future release
+- [ ] **salt/states/git.py:1488** - # TODO: Maybe re-retrieve all_local_branches to handle
+- [ ] **salt/states/git.py:1615** - # TODO: Figure out how to add submodule update info to
+- [ ] **salt/states/git.py:2534** - # TODO: implement clean function for git module and add clean flag
+- [ ] **salt/states/grains.py:265** - # TODO: Rather than fetching the grains again can we just rely on the status of grains.append?
+- [ ] **salt/states/makeconf.py:149** - # TODO verify appends and trims worked
+- [ ] **salt/states/network.py:573** - # TODO Add a way of reversing the interface changes.
+- [ ] **salt/states/pip_state.py:865** - # TODO: Check requirements file against currently-installed
+- [ ] **salt/states/postgres_cluster.py:80** - # TODO: check locale en encoding configs also
+- [ ] **salt/states/postgres_tablespace.py:148** - # TODO remove options that exist if possible
+- [ ] **salt/states/win_dns_client.py:162** - # TODO: waiting for an implementation of
+- [ ] **salt/transport/base.py:115** - # TODO:
+- [ ] **salt/transport/tcp.py:147** - # TODO: opts!
+- [ ] **salt/transport/tcp.py:395** - # TODO: For some reason we need to decode here for things
+- [ ] **salt/transport/tcp.py:591** - # TODO: opts!
+- [ ] **salt/transport/tcp.py:926** - # TODO: max queue size
+- [ ] **salt/transport/tcp.py:939** - # TODO: timeout inflight sessions
+- [ ] **salt/transport/tcp.py:1078** - # TODO: return a message object which takes care of multiplexing?
+- [ ] **salt/transport/tcp.py:1327** - # TODO: ACK the publish through IPC
+- [ ] **salt/transport/tcp.py:1520** - # TODO: opts!
+- [ ] **salt/transport/tcp.py:1952** - # TODO: max queue size
+- [ ] **salt/transport/ws.py:264** - # TODO: opts!
+- [ ] **salt/transport/zeromq.py:152** - # TODO: constants file for "broadcast"
+- [ ] **salt/transport/zeromq.py:166** - # TODO: cleanup all the socket opts stuff
+- [ ] **salt/transport/zeromq.py:287** - # TODO: this is the time to see if we are connected, maybe use the req channel to guess?
+- [ ] **salt/transport/zeromq.py:1579** - # TODO: constants file for "broadcast"
+- [ ] **salt/transport/zeromq.py:1746** - # TODO: timeout all in-flight sessions, or error
+- [ ] **salt/utils/boto3mod.py:280** - # TODO: Remove this and import salt.utils.data.exactly_one into boto_* modules instead
+- [ ] **salt/utils/botomod.py:267** - # TODO: Remove this and import salt.utils.data.exactly_one into boto_* modules instead
+- [ ] **salt/utils/cache.py:184** - # TODO Add check into preflight to ensure dir exists
+- [ ] **salt/utils/cache.py:185** - # TODO Dir hashing?
+- [ ] **salt/utils/cloud.py:2006** - # TODO: write some tests ???
+- [ ] **salt/utils/cloud.py:2007** - # TODO: check edge cases (e.g. ssh gateways, salt deploy disabled, etc.)
+- [ ] **salt/utils/cloud.py:2031** - # TODO: ensure we send the correct return value
+- [ ] **salt/utils/cloud.py:3209** - # TODO: Return an actual diff
+- [ ] **salt/utils/compat.py:17** - # TODO: Deprecate starting with Beryllium
+- [ ] **salt/utils/context.py:86** - # TODO: rename?
+- [ ] **salt/utils/debug.py:123** - # TODO(techtonik): consider using __main__
+- [ ] **salt/utils/dns.py:903** - # TODO: Should be in something intelligent like an SPF_get
+- [ ] **salt/utils/dns.py:1216** - # TODO
+- [ ] **salt/utils/event.py:123** - # TODO: AIO core is separate from transport
+- [ ] **salt/utils/files.py:210** - # TODO, backup to master
+- [ ] **salt/utils/find.py:105** - # TODO: grp and pwd are both used in the code, we better make sure that
+- [ ] **salt/utils/fsutils.py:56** - # TODO: Due to "blkid -o export" strongly differs from system to system, this must go away in favor of _blkid() below!
+- [ ] **salt/utils/http.py:332** - # TODO: This is hackish; it will overwrite the session cookie jar with
+- [ ] **salt/utils/http.py:716** - # TODO: See persist_session above
+- [ ] **salt/utils/minions.py:212** - # TODO: this is actually an *auth* check
+- [ ] **salt/utils/msgpack.py:15** - # TODO: Come up with a sane way to get a configured logfile
+- [ ] **salt/utils/network.py:1130** - # TODO what does Windows call Infiniband and 10/40gige adapters
+- [ ] **salt/utils/network.py:1149** - # TODO find the broadcast
+- [ ] **salt/utils/optsdict.py:1186** - # TODO: Implement global tracking
+- [ ] **salt/utils/reactor.py:363** - # TODO: Setting user doesn't seem to work for actual remote pubs
+- [ ] **salt/utils/schedule.py:777** - # TODO: Make it readable! Splt to funcs, remove nested try-except-finally sections.
+- [ ] **salt/utils/schedule.py:831** - # TODO: pack the *same* pub data as a minion?
+- [ ] **salt/utils/schema.py:635** - #    # TODO: Implement RST rendering
+- [ ] **salt/utils/schema.py:643** - #    # TODO: Implement YAML rendering
+- [ ] **salt/utils/schema.py:822** - #    # TODO: Implement YAML rendering
+- [ ] **salt/utils/schema.py:829** - #    # TODO: Include the item rules in the output, minimum, maximum, etc...
+- [ ] **salt/utils/thin.py:374** - # TODO: implement inheritance of the modules from _here_
+- [ ] **salt/utils/virt.py:93** - # TODO: Move this value to the master config file
+- [ ] **salt/utils/virtualbox.py:612** - # TODO maybe raise error here?
+- [ ] **salt/utils/vmware.py:2419** - # TODO implement support for multiple partitions
+- [ ] **salt/utils/vmware.py:2498** - # TODO Support variable sized partitions
+- [ ] **salt/utils/vmware.py:3127** - # TODO Support host caches on multiple datastores
+- [ ] **salt/utils/vmware.py:3172** - # TODO Support host caches on multiple datastores
+- [ ] **salt/utils/vsan.py:122** - # TODO Replace when better connection mechanism is available
+- [ ] **salt/utils/vsan.py:146** - # TODO Replace when better connection mechanism is available
+- [ ] **salt/utils/win_lgpo_netsh.py:563** - # TODO: Consider adding something like the following to validate filename
+- [ ] **salt/utils/win_lgpo_reg.py:164** - # TODO: This needs to be more specific
+- [ ] **salt/utils/win_lgpo_reg.py:265** - # TODO: This needs to be more specific
+- [ ] **salt/utils/win_network.py:81** - # TODO: Should we deprecate support for pythonnet 2.5.2, these enumerations can
+- [ ] **salt/utils/win_network.py:82** - # TODO: be deleted
+- [ ] **salt/utils/x509.py:1016** - # v36+ - there is pkcs12.load_key_and_certificates in 2.5+ @TODO?
+- [ ] **salt/wheel/__init__.py:46** - # TODO: remove/deprecate
+- [ ] **salt/wheel/__init__.py:58** - # TODO: Inconsistent with runner client-- the runner client's master_call gives
+- [ ] **salt/wheel/__init__.py:106** - # TODO: Inconsistent with runner client-- that one uses the master_call function
+
+## License
+
+The source licenses are retained at the repository root.
