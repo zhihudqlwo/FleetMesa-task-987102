@@ -47,6 +47,8 @@ AUTH_INTERNAL_KEYWORDS = frozenset(
         "print_event",
         "raw",
         "yield_pub_data",
+        "batch",
+        "batch_delay",
     ]
 )
 
@@ -70,6 +72,31 @@ class LoadAuth:
     @cached_property
     def ckminions(self):
         return self._ckminions or salt.utils.minions.CkMinions(self.opts)
+
+    def destroy(self):
+        """
+        Clean up resources
+        """
+        if hasattr(self, "auth") and self.auth is not None:
+            if hasattr(self.auth, "destroy"):
+                self.auth.destroy()
+            self.auth = {}
+        if hasattr(self, "tokens") and self.tokens is not None:
+            if hasattr(self.tokens, "destroy"):
+                self.tokens.destroy()
+            self.tokens = {}
+        if hasattr(self, "ckminions") and self.ckminions is not None:
+            if hasattr(self.ckminions, "cache") and self.ckminions.cache is not None:
+                if hasattr(self.ckminions.cache, "destroy"):
+                    self.ckminions.cache.destroy()
+                self.ckminions.cache = None
+            self.ckminions = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.destroy()
 
     def load_name(self, load):
         """
@@ -104,9 +131,18 @@ class LoadAuth:
         _valid = ["username", "password", "eauth", "token"]
         _load = {key: value for (key, value) in load.items() if key in _valid}
 
-        fcall = salt.utils.args.format_call(
-            self.auth[fstr], _load, expected_extra_kws=AUTH_INTERNAL_KEYWORDS
-        )
+        try:
+            fcall = salt.utils.args.format_call(
+                self.auth[fstr], _load, expected_extra_kws=AUTH_INTERNAL_KEYWORDS
+            )
+        except salt.exceptions.SaltInvocationError as e:
+            log.debug(
+                "Authentication request for eauth '%s' is missing required "
+                "arguments: %s",
+                load.get("eauth"),
+                e,
+            )
+            return False
         try:
             if "kwargs" in fcall:
                 return self.auth[fstr](*fcall["args"], **fcall["kwargs"])
@@ -253,7 +289,15 @@ class LoadAuth:
             new_token = str(hash_type(os.urandom(512)).hexdigest())
             tdata["token"] = new_token
             try:
-                self.cache.store("tokens", new_token, tdata, expires=tdata["expire"])
+                # ``Cache.store``'s ``expires`` is a *relative* duration in
+                # seconds, not an absolute epoch. Passing ``tdata["expire"]``
+                # here -- which is ``time.time() + token_expire`` -- caused
+                # the envelope ``_expires`` to be set to ``now + (now +
+                # token_expire)`` (~ year 4090), and combined with the
+                # broken ``Cache.clean_expired`` fallback resulted in tokens
+                # being deleted within a single master loop interval.
+                # Issue #69307.
+                self.cache.store("tokens", new_token, tdata, expires=token_expire)
             except salt.exceptions.SaltCacheError as err:
                 log.error(
                     "Cannot mk_token from tokens cache using %s: %s",
@@ -281,11 +325,43 @@ class LoadAuth:
                 tdata = self.tokens["{}.get_token".format(self.opts["eauth_tokens"])](
                     self.opts, tok
                 )
-            except salt.exceptions.SaltDeserializationError:
+            except salt.exceptions.SaltDeserializationError as exc:
+                # The on-disk / in-store token blob is corrupt and cannot
+                # be parsed. Removing it is the right call -- a corrupt
+                # token can never authenticate anyway, and leaving it
+                # around makes every subsequent ``get_tok`` for the same
+                # id keep failing. ``%r`` on the exception gives the
+                # operator the class and message inline (e.g. msgpack
+                # format error, truncated file) without spamming a full
+                # traceback into a hot-path WARNING; the full traceback is
+                # available via the companion ``log.debug`` for deeper
+                # investigation.
                 log.warning(
-                    "Failed to load token %r - removing broken/empty file.", tok
+                    "Token %r could not be deserialized (%r); removing it from the store.",
+                    tok,
+                    exc,
                 )
+                log.debug("Token deserialization traceback:", exc_info=True)
                 rm_tok = True
+            except OSError as exc:
+                # Transient backend error (Redis connection blip, NFS hang,
+                # hung disk). The token itself is fine; do NOT delete it --
+                # that would log every authenticated user out on every
+                # backend hiccup. Return an empty dict so the caller treats
+                # this request as not-authenticated; the next request will
+                # retry against the backend and succeed once it recovers.
+                # Same logging pattern as above -- exception class + message
+                # at WARNING, full traceback at DEBUG so a flapping deploy
+                # stays diagnoseable without GB/hour of stack frames.
+                log.warning(
+                    "Token store transient error reading %r (%r); treating as "
+                    "not-authenticated for this request without removing the "
+                    "token from the store.",
+                    tok,
+                    exc,
+                )
+                log.debug("Token store transient-error traceback:", exc_info=True)
+                return {}
             else:
                 if not tdata:
                     return {}
@@ -314,11 +390,39 @@ class LoadAuth:
             except (
                 salt.exceptions.SaltDeserializationError,
                 salt.exceptions.TokenExpiredError,
-            ):
+            ) as exc:
+                # The on-disk / in-store token blob is corrupt (or expired)
+                # and cannot be used. Removing it is the right call -- a
+                # corrupt token can never authenticate anyway, and leaving
+                # it around makes every subsequent ``get_tok`` for the same
+                # id keep failing. ``%r`` on the exception gives the
+                # operator the class and message inline without spamming a
+                # full traceback into a hot-path WARNING; the full
+                # traceback is available via the companion ``log.debug``
+                # for deeper investigation.
                 log.warning(
-                    "Failed to load token %r - removing broken/empty file.", tok
+                    "Token %r could not be loaded (%r); removing it from the store.",
+                    tok,
+                    exc,
                 )
+                log.debug("Token load traceback:", exc_info=True)
                 self.rm_token(tok)
+            except OSError as exc:
+                # Transient backend error (Redis connection blip, NFS hang,
+                # hung disk). The token itself is fine; do NOT delete it --
+                # that would log every authenticated user out on every
+                # backend hiccup. Return an empty dict so the caller treats
+                # this request as not-authenticated; the next request will
+                # retry against the backend and succeed once it recovers.
+                log.warning(
+                    "Token store transient error reading %r (%r); treating as "
+                    "not-authenticated for this request without removing the "
+                    "token from the store.",
+                    tok,
+                    exc,
+                )
+                log.debug("Token store transient-error traceback:", exc_info=True)
+                return {}
             except salt.exceptions.SaltCacheError as err:
                 log.error(
                     "Cannot get token %s from tokens cache using %s: %s",

@@ -159,7 +159,7 @@ class MultiDiGraph:
 
     def in_edges(
         self, node: str, keys: bool = False, data: bool = False
-    ) -> Generator[tuple, None, None]:
+    ) -> Generator[tuple]:
         """
         Return an iterator over the incoming edges of node.
 
@@ -184,7 +184,7 @@ class MultiDiGraph:
 
     def out_edges(
         self, node: str, keys: bool = False, data: bool = False
-    ) -> Generator[tuple, None, None]:
+    ) -> Generator[tuple]:
         """
         Return an iterator over the outgoing edges of node.
 
@@ -373,6 +373,19 @@ class DependencyGraph:
                     )
         self.dag.add_edge(prereq_check_node, node_tag, RequisiteType.PREREQ)
         self.dag.add_edge(node_tag, req_tag, RequisiteType.REQUIRE)
+        # If node_tag already has its own prereq_check_node (because it
+        # is being prereq'd by another state), that prereq check must
+        # also depend on req_tag's prereq_check so nested prereq chains
+        # are evaluated in dependency order. Otherwise node_tag's prereq
+        # check would run in test mode before req_tag has been evaluated
+        # and unconditionally show pending changes.
+        node_prereq_check_node = self._get_prereq_node_tag(node_tag)
+        if self.dag.nodes.get(node_prereq_check_node):
+            self.dag.add_edge(
+                prereq_check_node,
+                node_prereq_check_node,
+                RequisiteType.PREREQ,
+            )
 
     def _add_reqs(
         self,
@@ -699,9 +712,37 @@ class DependencyGraph:
         ]
         return ", ".join(cycle_edges)
 
+    def to_dot(self) -> str:
+        """
+        Return a DOT representation of the dependency graph
+        """
+        dot = ["digraph G {"]
+        # Add nodes
+        for node_id, node_data in self.dag.nodes.items():
+            chunk = node_data.get("chunk")
+            if chunk:
+                label = f"{chunk['state']}.{chunk['fun']}\\n{chunk['__id__']}"
+                if chunk["name"] != chunk["__id__"]:
+                    label += f"\\n({chunk['name']})"
+                dot.append(f'  "{node_id}" [label="{label}"];')
+            elif "aggregated_nodes" in node_data:
+                dot.append(
+                    f'  "{node_id}" [label="Aggregate {node_data["state"]}", shape=box];'
+                )
+            else:
+                dot.append(f'  "{node_id}" [label="{node_id}"];')
+
+        # Add edges
+        for source_node in self.dag.nodes:
+            for source, target, req_type in self.dag.out_edges(source_node, keys=True):
+                dot.append(f'  "{source}" -> "{target}" [label="{req_type}"];')
+
+        dot.append("}")
+        return "\n".join(dot)
+
     def get_dependencies(
         self, low: LowChunk
-    ) -> Generator[tuple[RequisiteType, LowChunk], None, None]:
+    ) -> Generator[tuple[RequisiteType, LowChunk]]:
         """Get the requisite type and low chunk for each dependency of low"""
         low_tag = _gen_tag(low)
         if low.get("__prereq__"):

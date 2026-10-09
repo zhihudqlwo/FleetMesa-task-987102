@@ -136,11 +136,14 @@ In this example ``foo.conf`` in the ``dev`` environment will be used instead.
         - mode: '0644'
         - attrs: i
 
-.. warning::
+.. note::
 
-    When using a mode that includes a leading zero you must wrap the
-    value in single quotes. If the value is not wrapped in quotes it
-    will be read by YAML as an integer and evaluated as an octal.
+    Salt's YAML loader special-cases octal-looking file modes, so all of
+    ``644``, ``0644``, ``0o644``, ``'644'``, ``'0644'`` and ``'0o644'``
+    resolve to the same value (octal ``0o644``). Quoting a mode with a
+    leading zero is therefore not required for correctness; some operators
+    still prefer to quote (for example ``'0644'``) so the literal mode is
+    visually obvious in the SLS file.
 
 .. _use-names-parameter:
 
@@ -3413,7 +3416,7 @@ def managed(
             list_contents = []
             for nextp in contents_pillar:
                 nextc = __salt__["pillar.get"](
-                    nextp, __NOT_FOUND, delimiter=contents_delimiter
+                    nextp, __NOT_FOUND, delimiter=contents_delimiter, unmask=True
                 )
                 if nextc is __NOT_FOUND:
                     return _error(ret, f"Pillar {nextp} does not exist")
@@ -3421,7 +3424,7 @@ def managed(
             use_contents = os.linesep.join(list_contents)
         else:
             use_contents = __salt__["pillar.get"](
-                contents_pillar, __NOT_FOUND, delimiter=contents_delimiter
+                contents_pillar, __NOT_FOUND, delimiter=contents_delimiter, unmask=True
             )
             if use_contents is __NOT_FOUND:
                 return _error(ret, f"Pillar {contents_pillar} does not exist")
@@ -3891,7 +3894,7 @@ def managed(
             ret = {"changes": {}, "comment": "", "name": name, "result": True}
 
     if comment_ and contents is None:
-        return _error(ret, comment_)
+        return _error(ret, f"Unable to manage file: {comment_}")
     else:
         try:
             return __salt__["file.manage_file"](
@@ -5796,6 +5799,7 @@ def replace(
     show_changes=True,
     ignore_if_missing=False,
     backslash_literal=False,
+    encoding=None,
 ):
     r"""
     Maintain an edit in a file.
@@ -5904,6 +5908,26 @@ def replace(
         the backslashes are not interpreted for the repl on the second run of
         the state.
 
+    encoding
+        .. versionadded:: 3006.26
+
+        The character encoding to use when reading and writing the file.
+        When set, the binary-file check is bypassed and the file is opened
+        in text mode using the specified encoding. Required for files encoded
+        as UTF-16, UTF-32, or other multi-byte encodings whose null bytes
+        would otherwise cause the file to be treated as binary.
+
+        Example:
+
+        .. code-block:: yaml
+
+            patch_minimum_ps_version:
+              file.replace:
+                - name: C:/Program Files/WindowsPowerShell/Modules/PSWindowsUpdate/PSWindowsUpdate.psd1
+                - pattern: "PowerShellVersion\\s+=\\s+.*"
+                - repl: "PowerShellVersion = '3.0'"
+                - encoding: utf-16
+
     For complex regex patterns, it can be useful to avoid the need for complex
     quoting and escape sequences by making use of YAML's multiline string
     syntax.
@@ -5967,6 +5991,7 @@ def replace(
         show_changes=show_changes,
         ignore_if_missing=ignore_if_missing,
         backslash_literal=backslash_literal,
+        encoding=encoding,
     )
 
     if changes:
@@ -6445,6 +6470,14 @@ def blockreplace(
         marker will be replaced, so it's important to ensure that your marker
         includes the beginning of the text you wish to replace.
 
+        .. note::
+
+            ``marker_end`` must not contain ``marker_start`` as a substring,
+            and the two markers must not be equal. When the start marker is
+            also present inside the end marker the block cannot be located
+            and the state fails with ``Unterminated marked block. End of
+            file reached before marker_end.``.
+
     content
         The content to be used between the two lines identified by
         ``marker_start`` and ``marker_end``
@@ -6918,6 +6951,7 @@ def append(
     defaults=None,
     context=None,
     ignore_whitespace=True,
+    show_changes=True,
 ):
     """
     Ensure that some text appears at the end of a file.
@@ -7008,6 +7042,12 @@ def append(
         Spaces and Tabs in text are ignored by default, when searching for the
         appending content, one space or multiple tabs are the same for salt.
         Set this option to ``False`` if you want to change this behavior.
+
+    show_changes
+        .. versionadded:: 3008.0
+
+        Output a unified diff of the old file and the new file.
+        Set this option to  ``False`` to disable this.
 
     Multi-line example:
 
@@ -7148,6 +7188,8 @@ def append(
         if slines != nlines:
             if not __utils__["files.is_text"](name):
                 ret["changes"]["diff"] = "Replace binary file"
+            elif not show_changes:
+                ret["changes"]["diff"] = "<show_changes=False>"
             else:
                 # Changes happened, add them
                 ret["changes"]["diff"] = "\n".join(difflib.unified_diff(slines, nlines))
@@ -7170,6 +7212,8 @@ def append(
     if slines != nlines:
         if not __utils__["files.is_text"](name):
             ret["changes"]["diff"] = "Replace binary file"
+        elif not show_changes:
+            ret["changes"]["diff"] = "<show_changes=False>"
         else:
             # Changes happened, add them
             ret["changes"]["diff"] = "\n".join(difflib.unified_diff(slines, nlines))
@@ -7191,6 +7235,7 @@ def prepend(
     defaults=None,
     context=None,
     header=None,
+    show_changes=True,
 ):
     """
     Ensure that some text appears at the beginning of a file
@@ -7285,6 +7330,12 @@ def prepend(
     header
         Forces the text to be prepended. If it exists in the file but not at
         the beginning, then it prepends a duplicate.
+
+    show_changes
+        .. versionadded:: 3008.0
+
+        Output a unified diff of the old file and the new file.
+        Set this option to  ``False`` to disable this.
 
     Multi-line example:
 
@@ -7441,6 +7492,8 @@ def prepend(
         if slines != nlines:
             if not __utils__["files.is_text"](name):
                 ret["changes"]["diff"] = "Replace binary file"
+            elif not show_changes:
+                ret["changes"]["diff"] = "<show_changes=False>"
             else:
                 # Changes happened, add them
                 ret["changes"]["diff"] = "".join(difflib.unified_diff(slines, nlines))
@@ -7480,6 +7533,8 @@ def prepend(
     if slines != nlines:
         if not __utils__["files.is_text"](name):
             ret["changes"]["diff"] = "Replace binary file"
+        elif not show_changes:
+            ret["changes"]["diff"] = "<show_changes=False>"
         else:
             # Changes happened, add them
             ret["changes"]["diff"] = "".join(difflib.unified_diff(slines, nlines))
@@ -8015,7 +8070,10 @@ def copy_(
     .. note::
         This state only copies files from one location on a minion to another
         location on the same minion. For copying files from the master, use a
-        :py:func:`file.managed <salt.states.file.managed>` state.
+        :py:func:`file.managed <salt.states.file.managed>` state. To fetch
+        a single file from the master inside an execution module, runner or
+        Jinja template, use
+        :py:func:`cp.get_file <salt.modules.cp.get_file>`.
 
     name
         The location of the file to copy to
@@ -8244,15 +8302,17 @@ def copy_(
 
 def rename(name, source, force=False, makedirs=False, **kwargs):
     """
-    If the source file exists on the system, rename it to the named file. The
-    named file will not be overwritten if it already exists unless the force
-    option is set to True.
+    If the source path exists on the system, rename it to the named path.
+    Both files and directories are supported. The named path will not be
+    overwritten if it already exists unless the force option is set to
+    ``True``.
 
     name
-        The location of the file to rename to
+        The location to rename the source to (file or directory)
 
     source
-        The location of the file to move to the location specified with name
+        The location of the file or directory to move to the location
+        specified with ``name``
 
     force
         If the target location is present then the file will not be moved,
@@ -8718,7 +8778,10 @@ def serialize(
         return _error(ret, "Only one of 'dataset' and 'dataset_pillar' is permitted")
 
     if dataset_pillar:
-        dataset = __salt__["pillar.get"](dataset_pillar)
+        # Since 3008, pillar.get masks scalar string values by default; pass
+        # unmask=True so the real values are serialized into the file instead
+        # of the redaction placeholder, matching file.managed contents_pillar.
+        dataset = __salt__["pillar.get"](dataset_pillar, unmask=True)
 
     if dataset is None:
         return _error(ret, "Neither 'dataset' nor 'dataset_pillar' was defined")
@@ -9211,7 +9274,10 @@ def decode(
     elif encoded_data:
         content = encoded_data
     elif contents_pillar:
-        content = __salt__["pillar.get"](contents_pillar, False)
+        # Since 3008, pillar.get masks scalar string values by default; pass
+        # unmask=True so the decoded data written to the file is the real
+        # value rather than the redaction placeholder.
+        content = __salt__["pillar.get"](contents_pillar, False, unmask=True)
         if content is False:
             raise CommandExecutionError("Pillar data not found.")
     else:

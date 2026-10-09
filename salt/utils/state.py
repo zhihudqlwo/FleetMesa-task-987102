@@ -19,12 +19,71 @@ log = logging.getLogger(__name__)
 
 _empty = object()
 
+_SAFE_MASTER_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+)
+
+
+def _sanitize_master_id(master):
+    """
+    Return a filesystem-safe identifier for a master.
+
+    In multimaster, each Minion has its own opts["master"] string. The string
+    may contain characters (``:`` for host:port, ``/`` for IPv6 zone ids, etc.)
+    that are not valid in path components on every OS we support — Windows
+    in particular rejects ``:`` in filenames.
+    """
+    if master is None:
+        return "_default"
+    if isinstance(master, (list, tuple)):
+        master = ",".join(str(m) for m in master)
+    master = str(master)
+    if not master:
+        return "_default"
+    return "".join(c if c in _SAFE_MASTER_CHARS else "_" for c in master)
+
+
+def queue_base_dir(opts):
+    """
+    Return the per-master queue base directory.
+    """
+    return os.path.join(
+        opts["cachedir"], "queues", _sanitize_master_id(opts.get("master"))
+    )
+
+
+def queue_lock_path(opts):
+    """
+    Return the per-master queue lock file path.
+    """
+    return os.path.join(queue_base_dir(opts), "queue.lock")
+
+
+def job_queue_dir(opts):
+    """
+    Return the per-master job queue directory.
+    """
+    return os.path.join(queue_base_dir(opts), "job_queue")
+
+
+def state_queue_dir(opts):
+    """
+    Return the per-master state queue directory.
+    """
+    return os.path.join(queue_base_dir(opts), "state_queue")
+
 
 def acquire_queue_lock(opts):
     """
     Acquire the state queue lock
     """
-    lock_path = os.path.join(opts["cachedir"], "minion_queue.lock")
+    lock_path = queue_lock_path(opts)
+    # Ensure the parent directory exists; the lock lives under the per-master
+    # queue base which may not have been created yet on a fresh minion.
+    try:
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    except OSError:
+        pass
     # Use a large timeout to mimic infinite blocking of FileLock, as wait_lock defaults to 5s
     return salt.utils.files.wait_lock(lock_path, lock_fn=lock_path, timeout=86400)
 
@@ -33,7 +92,11 @@ def acquire_async_queue_lock(opts):
     """
     Acquire the job queue lock asynchronously
     """
-    lock_path = os.path.join(opts["cachedir"], "minion_queue.lock")
+    lock_path = queue_lock_path(opts)
+    try:
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    except OSError:
+        pass
     # Use timeout that allows queue processing to work but doesn't hang tests
     return salt.utils.files.await_lock(
         lock_path, lock_fn=lock_path, timeout=5.0, sleep=0.1
@@ -105,8 +168,7 @@ def check_prior_running_states(opts, jid, active_jobs):
     active_jobs = list(active_jobs)
 
     # Check for queued jobs in BOTH state_queue and job_queue
-    for queue_name in ("state_queue", "job_queue"):
-        queue_dir = os.path.join(opts["cachedir"], queue_name)
+    for queue_dir in (state_queue_dir(opts), job_queue_dir(opts)):
         if not os.path.exists(queue_dir):
             continue
 
@@ -144,12 +206,23 @@ def check_prior_running_states(opts, jid, active_jobs):
             if str(data_jid) == str(jid):
                 continue
 
-            # Only block if the other job is OLDER than the current one.
-            # This ensures FIFO ordering and prevents deadlocks where two
-            # jobs block each other.
-            # Salt JIDs are usually timestamp-based strings (e.g. 20230524100000)
-            # which sort correctly as strings OR ints.
-            if str(data_jid) < str(jid):
+            # A real running state.* job (non-zero PID) must always block,
+            # regardless of how its JID sorts relative to ours. Comparing by
+            # JID here would let a concurrently running job whose JID sorts
+            # *higher* than ours slip past the check, breaking the "one
+            # state run at a time per minion" guarantee (issue #69825).
+            #
+            # Queued placeholder entries (pid == 0, produced by scanning the
+            # queue directories above) represent jobs that have not yet
+            # started. For those, block only when the placeholder's JID
+            # sorts before ours so the queue processor can dequeue the
+            # oldest queued JID without deadlocking on younger siblings.
+            # Salt JIDs are usually timestamp-based strings (e.g.
+            # 20230524100000) which sort correctly as strings OR ints.
+            pid = data.get("pid")
+            if pid:
+                ret.append(data)
+            elif str(data_jid) < str(jid):
                 ret.append(data)
         except (ValueError, TypeError):
             continue
@@ -369,11 +442,23 @@ def get_sls_opts(opts, **kwargs):
                 )
             opts["saltenv"] = kwargs["saltenv"]
 
-    if "pillarenv" in kwargs or opts.get("pillarenv_from_saltenv", False):
-        pillarenv = kwargs.get("pillarenv") or kwargs.get("saltenv")
+    if "pillarenv" in kwargs:
+        # Explicit pillarenv kwarg wins — including an explicit ``None`` which
+        # is how callers request "merge all envs".
+        pillarenv = kwargs["pillarenv"]
         if pillarenv is not None and not isinstance(pillarenv, str):
             opts["pillarenv"] = str(pillarenv)
         else:
             opts["pillarenv"] = pillarenv
+    elif opts.get("pillarenv_from_saltenv", False) and "saltenv" in kwargs:
+        # ``pillarenv_from_saltenv`` only kicks in when the caller actually
+        # passes a ``saltenv`` kwarg; if they didn't, respect whatever
+        # ``pillarenv`` was already in opts (typically the minion config).
+        # Fixes #68791.
+        saltenv = kwargs["saltenv"]
+        if saltenv is not None and not isinstance(saltenv, str):
+            opts["pillarenv"] = str(saltenv)
+        else:
+            opts["pillarenv"] = saltenv
 
     return opts

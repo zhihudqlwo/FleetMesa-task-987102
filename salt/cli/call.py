@@ -1,8 +1,10 @@
 import os
+import sys
 
 import salt.cli.caller
 import salt.defaults.exitcodes
 import salt.utils.parsers
+import salt.utils.tracing
 import salt.utils.verify
 from salt.config import _expand_glob_path, prepend_root_dir
 
@@ -38,6 +40,29 @@ class SaltCall(salt.utils.parsers.SaltCallOptionParser):
                 # check if the argument is pointing to a file on disk
                 states_dirs.append(os.path.abspath(states_dir))
             self.config["states_dirs"] = states_dirs
+
+        # Warn when the user passed local-roots overrides without --local.
+        # Without --local the remote file client retrieves state/pillar data
+        # from the master, which silently overwrites the local file_roots /
+        # pillar_roots / states_dirs configured above (see #68137).
+        if not self.options.local:
+            ignored = []
+            if self.options.file_root:
+                ignored.append("--file-root")
+            if self.options.pillar_root:
+                ignored.append("--pillar-root")
+            if self.options.states_dir:
+                ignored.append("--states-dir")
+            if ignored:
+                sys.stderr.write(
+                    "Warning: {} {} ignored because --local was not "
+                    "specified; the remote file client retrieves these "
+                    "from the master. Re-run with --local to use the "
+                    "local override.\n".format(
+                        ", ".join(ignored),
+                        "is" if len(ignored) == 1 else "are",
+                    )
+                )
 
         if self.options.local:
             self.config["file_client"] = "local"
@@ -101,4 +126,26 @@ class SaltCall(salt.utils.parsers.SaltCallOptionParser):
             caller.print_grains()
             self.exit(salt.defaults.exitcodes.EX_OK)
 
-        caller.run()
+        salt.utils.tracing.configure({**self.config, "__role": "minion"})
+        env_carrier = {
+            k: v
+            for k, v in (
+                ("traceparent", os.environ.get("TRACEPARENT", "")),
+                ("tracestate", os.environ.get("TRACESTATE", "")),
+            )
+            if v
+        }
+        trace_ctx = salt.utils.tracing.extract(env_carrier)
+        with salt.utils.tracing.start_span(
+            (
+                f"salt-call.{self.config.get('fun', '')}"
+                if self.config.get("fun")
+                else "salt-call"
+            ),
+            attributes={"salt.fun": self.config.get("fun", "")},
+            context=trace_ctx,
+        ):
+            try:
+                caller.run()
+            finally:
+                salt.utils.tracing.shutdown()

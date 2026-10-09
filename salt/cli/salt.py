@@ -8,6 +8,7 @@ sys.modules["pkg_resources"] = None
 import salt.defaults.exitcodes
 import salt.utils.parsers
 import salt.utils.stringutils
+import salt.utils.tracing
 from salt.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -29,9 +30,29 @@ class SaltCMD(salt.utils.parsers.SaltCMDOptionParser):
         """
         Execute the salt command line
         """
-        import salt.client
+        import salt.client  # noqa: F401
 
         self.parse_args()
+        salt.utils.tracing.configure({**self.config, "__role": "cli"})
+        span_name = (
+            f"salt.cli.{self.config.get('fun', '')}"
+            if self.config.get("fun")
+            else "salt.cli"
+        )
+        with salt.utils.tracing.start_span(
+            span_name,
+            attributes={
+                "salt.cli.tgt": str(self.config.get("tgt", "")),
+                "salt.cli.fun": self.config.get("fun", ""),
+            },
+        ):
+            try:
+                self._run()
+            finally:
+                salt.utils.tracing.shutdown()
+
+    def _run(self):
+        import salt.client
 
         try:
             # We don't need to bail on config file permission errors
@@ -302,6 +323,12 @@ class SaltCMD(salt.utils.parsers.SaltCMDOptionParser):
                 if job_retcode > retcode:
                     # Exit with the highest retcode we find
                     retcode = job_retcode
+            if not batch.minions:
+                # No minions matched the target. Mirror the non-batch CLI,
+                # which prints "No return received" and exits 2 rather than
+                # silently exiting 0 (#57357).
+                sys.stderr.write("ERROR: No return received\n")
+                sys.exit(2)
             sys.exit(retcode)
 
     def _run_batch_async(self, eauth):

@@ -7,7 +7,6 @@ and the like, but also useful for basic HTTP testing.
 
 import email.message
 import gzip
-import http.client
 import http.cookiejar
 import io
 import logging
@@ -524,22 +523,8 @@ def query(
                             cert,
                         )
                         return
-                    if hasattr(ssl, "SSLContext"):
-                        # Python >= 2.7.9
-                        context = ssl.SSLContext.load_cert_chain(*cert_chain)
-                        handlers.append(
-                            urllib.request.HTTPSHandler(context=context)
-                        )  # pylint: disable=E1123
-                    else:
-                        # Python < 2.7.9
-                        cert_kwargs = {
-                            "host": request.get_host(),
-                            "port": port,
-                            "cert_file": cert_chain[0],
-                        }
-                        if len(cert_chain) > 1:
-                            cert_kwargs["key_file"] = cert_chain[1]
-                        handlers[0] = http.client.HTTPSConnection(**cert_kwargs)
+                    context = ssl.SSLContext.load_cert_chain(*cert_chain)
+                    handlers.append(urllib.request.HTTPSHandler(context=context))
 
         opener = urllib.request.build_opener(*handlers)
         for header in header_dict:
@@ -630,12 +615,15 @@ def query(
         req_kwargs = salt.utils.data.decode(req_kwargs, to_str=True)
 
         try:
-            download_client = SyncWrapper(
-                AsyncHTTPClient,
-                kwargs={"max_body_size": max_body} if supports_max_body_size else {},
-                async_methods=["fetch"],
+            download_client_kwargs = (
+                {"max_body_size": max_body} if supports_max_body_size else {}
             )
-            result = download_client.fetch(url_full, **req_kwargs)
+            with SyncWrapper(
+                AsyncHTTPClient,
+                kwargs=download_client_kwargs,
+                async_methods=["fetch"],
+            ) as download_client:
+                result = download_client.fetch(url_full, **req_kwargs)
         except tornado.httpclient.HTTPError as exc:
             ret["status"] = exc.code
             ret["error"] = str(exc)
@@ -787,6 +775,11 @@ def get_ca_bundle(opts=None):
     opts_bundle = opts.get("ca_bundle", None)
     if opts_bundle is not None and os.path.exists(opts_bundle):
         return opts_bundle
+
+    if opts.get("use_os_truststore", False):
+        # The OS trust store was injected globally at daemon startup via
+        # pip-system-certs; no CA bundle file path is needed.
+        return None
 
     file_roots = opts.get("file_roots", {"base": [salt.syspaths.SRV_ROOT_DIR]})
 

@@ -385,8 +385,11 @@ class SaltfileMixIn(metaclass=MixInMeta):
             "--saltfile",
             default=None,
             help=(
-                "Specify the path to a Saltfile. If not passed, one will be "
-                "searched for in the current working directory."
+                "Specify the path to a Saltfile, a YAML file of command-line "
+                "options for this command (not a configuration file). If not "
+                "given, the SALT_SALTFILE environment variable, then a Saltfile "
+                "in the current working directory, then ~/.salt/Saltfile are "
+                "used."
             ),
         )
 
@@ -2975,6 +2978,42 @@ class SaltCallOptionParser(
             dest="user",
             default=None,
             help="Username to run salt-call as.",
+        )
+        self.add_option(
+            "-r",
+            "--resources",
+            dest="resources_dispatch",
+            default=False,
+            action="store_true",
+            help=(
+                "Dispatch the call to managed resources in addition to (or "
+                "instead of) the managing minion. Without --tgt, defaults to "
+                "'*' which targets the managing minion plus every resource "
+                "configured via Pillar. Use --tgt / --tgt-type to narrow."
+            ),
+        )
+        self.add_option(
+            "--tgt",
+            dest="resources_tgt",
+            default="*",
+            metavar="TGT",
+            help=(
+                "Target expression for -r/--resources dispatch. Default '*' "
+                "matches the managing minion and every resource. Only "
+                "consulted when -r is set."
+            ),
+        )
+        self.add_option(
+            "--tgt-type",
+            dest="resources_tgt_type",
+            default="glob",
+            metavar="TYPE",
+            choices=("glob", "list", "compound", "grain", "grain_pcre", "pcre"),
+            help=(
+                "Target type for -r/--resources dispatch. One of: glob "
+                "(default), list, compound, grain, grain_pcre, pcre. Only "
+                "consulted when -r is set."
+            ),
         )
 
     def _mixin_after_parsed(self):

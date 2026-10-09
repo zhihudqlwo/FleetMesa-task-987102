@@ -53,11 +53,10 @@ This dependency is only needed to use the ``esxcli`` function. At the time of th
 writing, no other functions in this module rely on ESXCLI.
 
 The ESXCLI package is also referred to as the VMware vSphere CLI, or vCLI. VMware
-provides vCLI package installation instructions for `vSphere 5.5`_ and
-`vSphere 6.0`_.
+provides the `ESXCLI command reference`_ for current installation and usage
+instructions.
 
-.. _vSphere 5.5: http://pubs.vmware.com/vsphere-55/index.jsp#com.vmware.vcli.getstart.doc/cli_install.4.2.html
-.. _vSphere 6.0: http://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.vcli.getstart.doc/cli_install.4.2.html
+.. _ESXCLI command reference: https://developer.broadcom.com/xapis/esxcli-command-reference/latest/
 
 Once all of the required dependencies are in place and the vCLI package is
 installed, you can check to see if you can connect to your ESXi host or vCenter
@@ -272,6 +271,17 @@ def _get_service_instance(
         "Please check the debug log for more information.".format(host)
     )
 
+    # pyvmomi >= 9 removed support for the deprecated b64token/mechanism
+    # keyword arguments and unconditionally raises if either is truthy. The
+    # supported replacement keywords are token/tokenType, present since
+    # pyvmomi 8. Only forward them when we actually have a token to send -
+    # for the default userpass mechanism the credentials are passed through
+    # user/pwd and no token argument is needed.
+    token_kwargs = {}
+    if token is not None:
+        token_kwargs["token"] = token
+        token_kwargs["tokenType"] = mechanism
+
     try:
         if verify_ssl:
             service_instance = SmartConnect(
@@ -280,8 +290,7 @@ def _get_service_instance(
                 pwd=password,
                 protocol=protocol,
                 port=port,
-                b64token=token,
-                mechanism=mechanism,
+                **token_kwargs,
             )
     except TypeError as exc:
         if "unexpected keyword argument" in exc.message:
@@ -320,8 +329,7 @@ def _get_service_instance(
                 protocol=protocol,
                 port=port,
                 sslContext=ssl._create_unverified_context(),
-                b64token=token,
-                mechanism=mechanism,
+                **token_kwargs,
             )
         except Exception as exc:  # pylint: disable=broad-except
             # pyVmomi's SmartConnect() actually raises Exception in some cases.
@@ -336,8 +344,7 @@ def _get_service_instance(
                         protocol=protocol,
                         port=port,
                         sslContext=context,
-                        b64token=token,
-                        mechanism=mechanism,
+                        **token_kwargs,
                     )
                 except Exception as exc:  # pylint: disable=broad-except
                     log.exception(exc)
@@ -477,9 +484,27 @@ def get_service_instance(
     log.trace("Checking connection is still authenticated")
     try:
         service_instance.CurrentTime()
-    except vim.fault.NotAuthenticated:
-        log.trace("Session no longer authenticating. Reconnecting")
-        Disconnect(service_instance)
+    except (
+        vim.fault.NotAuthenticated,
+        ssl.SSLError,
+        BrokenPipeError,
+        ConnectionResetError,
+    ):
+        # NotAuthenticated means the session expired. The socket-level errors
+        # (SSLError, BrokenPipeError, ConnectionResetError) mean the cached
+        # connection has gone stale or been corrupted - for example when a
+        # cached service instance is inherited across an os.fork() (such as the
+        # multiprocessing.Pool salt-cloud uses in map_providers_parallel) and
+        # the shared TLS socket is used from more than one process. In every
+        # case the fix is the same: drop the dead connection and reconnect.
+        log.trace("Cached connection is stale or unauthenticated. Reconnecting")
+        try:
+            Disconnect(service_instance)
+        except Exception:  # pylint: disable=broad-except
+            # Disconnect performs a logout over the same socket, which can
+            # itself fail when the connection is already broken. Ignore it -
+            # we are about to replace the service instance regardless.
+            pass
         service_instance = _get_service_instance(
             host,
             username,
@@ -879,8 +904,10 @@ def get_content(
     """
     Returns the content of the specified type of object for a Service Instance.
 
-    For more information, please see:
-    http://pubs.vmware.com/vsphere-50/index.jsp?topic=%2Fcom.vmware.wssdk.pg.doc_50%2FPG_Ch5_PropertyCollector.7.6.html
+    For more information, please see the ``PropertyCollector`` reference in the
+    `vSphere Web Services API`_ documentation.
+
+    .. _vSphere Web Services API: https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/
 
     service_instance
         The Service Instance from which to obtain content.

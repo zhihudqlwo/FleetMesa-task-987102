@@ -12,6 +12,16 @@ import io
 import json
 import logging
 import multiprocessing
+
+# Eagerly import multiprocessing.connection so the lazy ``from
+# multiprocessing.connection import wait`` inside
+# multiprocessing.popen_fork.Popen.wait() is resolved at startup. If a
+# reentrant SIGTERM arrives while ProcessManager.kill_children() is mid
+# Process.join(0), a second handler invocation can hit that lazy import
+# while the module is still partially initialised, raising
+# "ImportError: cannot import name 'wait' from partially initialized
+# module 'multiprocessing.connection'". See issue #68573.
+import multiprocessing.connection  # noqa: F401
 import multiprocessing.util
 import os
 import queue
@@ -166,6 +176,26 @@ def notify_systemd():
     """
     Notify systemd that this process has started
     """
+    return _notify_systemd(b"READY=1", "--ready")
+
+
+def notify_systemd_stopping():
+    """
+    Notify systemd that this process has entered its graceful shutdown phase.
+
+    Best-effort: silently returns ``False`` when the ``systemd`` bindings are
+    not importable *and* the ``systemd-notify`` helper is not on ``PATH``,
+    or when the ``NOTIFY_SOCKET`` env var is unset (i.e. the daemon was not
+    started under a ``Type=notify`` systemd unit).
+    """
+    return _notify_systemd(b"STOPPING=1", "--stopping")
+
+
+def _notify_systemd(message, notify_flag):
+    """
+    Send ``message`` (bytes) to the systemd notify socket, falling back to
+    ``systemd-notify <notify_flag>`` when the Python bindings are unavailable.
+    """
     try:
         import systemd.daemon  # pylint: disable=no-name-in-module
     except ImportError:
@@ -179,16 +209,16 @@ def notify_systemd():
                 try:
                     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
                     sock.connect(notify_socket)
-                    sock.sendall(b"READY=1")
+                    sock.sendall(message)
                     sock.close()
                 except OSError:
-                    return systemd_notify_call("--ready")
+                    return systemd_notify_call(notify_flag)
                 return True
         return False
 
     if systemd.daemon.booted():
         try:
-            return systemd.daemon.notify("READY=1")
+            return systemd.daemon.notify(message.decode("ascii"))
         except SystemError:
             # Daemon was not started by systemd
             pass
@@ -523,12 +553,14 @@ class ProcessManager:
             kwargs = {}
 
         if inspect.isclass(tgt) and issubclass(tgt, multiprocessing.Process):
-            kwargs["name"] = name or tgt.__qualname__
+            if name is None:
+                name = getattr(tgt, "__qualname__", str(tgt))
+            kwargs["name"] = name
             process = tgt(*args, **kwargs)
         else:
-            process = Process(
-                target=tgt, args=args, kwargs=kwargs, name=name or tgt.__qualname__
-            )
+            if name is None:
+                name = getattr(tgt, "__qualname__", str(tgt))
+            process = Process(target=tgt, args=args, kwargs=kwargs, name=name)
 
         process.register_finalize_method(cleanup_finalize_process, args, kwargs)
 
@@ -570,13 +602,30 @@ class ProcessManager:
                 self._process_map[pid]["Process"].exitcode,
             )
         # don't block, the process is already dead
-        self._process_map[pid]["Process"].join(1)
+        old_process = self._process_map[pid]["Process"]
+        old_process.join(1)
 
         self.add_process(
             self._process_map[pid]["tgt"],
             self._process_map[pid]["args"],
             self._process_map[pid]["kwargs"],
         )
+
+        # Release the pipe fds held by the dead process's Popen object.
+        # Without this, every restart leaks the two ``parent_r``/``parent_w``
+        # pipe fds ``multiprocessing.popen_fork.Popen`` opens per fork.
+        # Long-running masters (which restart ``FileserverUpdate`` every
+        # ``fileserver_interval`` seconds and other subprocesses on their own
+        # cycles) accumulate these fds indefinitely -- roughly +2 fds per
+        # restart per subprocess -- until the master hits ``max_open_files``.
+        try:
+            old_process.close()
+        except (ValueError, AttributeError):
+            # ValueError: child had not fully finished (should not happen
+            #   because we just joined it, but be defensive).
+            # AttributeError: subclasses that override ``close`` or older
+            #   Python versions without ``Process.close`` (< 3.7).
+            pass
 
         del self._process_map[pid]
 
@@ -814,7 +863,7 @@ class ProcessManager:
             if callable(self._sigterm_handler):
                 return self._sigterm_handler(*args)
             elif self._sigterm_handler is not None:
-                return signal.default_int_handler(signal.SIGTERM)(*args)
+                return signal.default_int_handler(*args)
             else:
                 return
 
@@ -951,6 +1000,15 @@ class Process(multiprocessing.Process):
             self.register_after_fork_method(function, *args, **kwargs)
         for function, args, kwargs in state["finalize_methods"]:
             self.register_finalize_method(function, *args, **kwargs)
+        # _INTERNAL_PROCESS_FINALIZE_FUNCTION_LIST lives at module scope and
+        # is populated in the parent (e.g. by gitfs registering its lock
+        # cleanup). Under fork the child inherits it via memory copy, but
+        # forkserver/spawn give us a fresh interpreter where the list is
+        # empty -- breaking SIGTERM-triggered cleanup hooks. Re-seed it
+        # from the pickled parent state so cleanup_finalize_process has
+        # something to iterate.
+        for function, args, kwargs in state.get("internal_finalize_functions", []):
+            register_cleanup_finalize_function(function, *args, **kwargs)
 
     def __getstate__(self):
         """
@@ -967,6 +1025,9 @@ class Process(multiprocessing.Process):
             "after_fork_methods": self._after_fork_methods,
             "finalize_methods": self._finalize_methods,
             "logging_config": self.__logging_config__,
+            "internal_finalize_functions": list(
+                _INTERNAL_PROCESS_FINALIZE_FUNCTION_LIST
+            ),
         }
 
     def __decorate_run(self, run_func):  # pylint: disable=unused-private-member
